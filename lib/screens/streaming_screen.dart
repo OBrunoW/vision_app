@@ -654,19 +654,19 @@ class _RecButton extends StatelessWidget {
   const _RecButton({
     required this.mode,
     required this.onPressed,
-    this.diameter = 72,
   });
+
+  static const double _diameter = 72;
 
   final _RecButtonMode mode;
   final VoidCallback? onPressed;
-  final double diameter;
 
   static const Color _red = Color(0xFFE11D48);
 
   @override
   Widget build(BuildContext context) {
     final dimmed = onPressed == null && mode != _RecButtonMode.connecting;
-    final outer = diameter;
+    final outer = _diameter;
 
     return Opacity(
       opacity: dimmed ? 0.42 : 1,
