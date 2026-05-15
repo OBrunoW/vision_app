@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'config_screen.dart';
+import 'streaming_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -14,11 +14,11 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Future<void>.delayed(const Duration(milliseconds: 900), () {
+    Future<void>.delayed(const Duration(milliseconds: 320), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (context) => const ConfigScreen(),
+          builder: (context) => const StreamingScreen(),
         ),
       );
     });
@@ -32,8 +32,8 @@ class _SplashScreenState extends State<SplashScreen> {
       body: Center(
         child: SvgPicture.asset(
           'assets/svg/logo-visor.svg',
-          width: 168,
-          height: 168,
+          width: 120,
+          height: 120,
           fit: BoxFit.contain,
         ),
       ),
