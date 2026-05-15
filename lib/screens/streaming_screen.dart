@@ -141,6 +141,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
     final cams = _cameras;
     if (ctrl == null || cams == null || cams.length < 2) return;
     final wasLive = ctrl.value.isStreamingVideoRtmp == true;
+    _rtmp.beginMaintenance();
     try {
       if (wasLive) {
         await ctrl.stopVideoStreaming();
@@ -160,6 +161,8 @@ class _StreamingScreenState extends State<StreamingScreen> {
       if (mounted) {
         setState(() {});
       }
+    } finally {
+      _rtmp.endMaintenance();
     }
   }
 

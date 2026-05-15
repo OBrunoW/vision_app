@@ -26,6 +26,7 @@ class RtmpService extends ChangeNotifier {
   bool _wantsStream = false;
   int _attemptsLeft = 3;
   bool _reconnectBusy = false;
+  bool _maintenance = false;
   VoidCallback? _boundListener;
 
   RtmpSessionState get state => _state;
@@ -49,7 +50,16 @@ class RtmpService extends ChangeNotifier {
     await _tryConnect();
   }
 
+  void beginMaintenance() {
+    _maintenance = true;
+  }
+
+  void endMaintenance() {
+    _maintenance = false;
+  }
+
   void _onControllerUpdated() {
+    if (_maintenance) return;
     final c = _controller;
     if (c == null || !_wantsStream) return;
     final v = c.value;
@@ -70,7 +80,7 @@ class RtmpService extends ChangeNotifier {
   }
 
   Future<void> _handleUnexpectedStop() async {
-    if (_reconnectBusy || !_wantsStream) return;
+    if (_maintenance || _reconnectBusy || !_wantsStream) return;
     _reconnectBusy = true;
     try {
       _attemptsLeft--;
