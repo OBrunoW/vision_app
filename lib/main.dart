@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/config_screen.dart';
+
+import 'screens/splash_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -9,26 +11,14 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  static const Color liveAccent = Color(0xFFE53935);
-
   @override
   Widget build(BuildContext context) {
-    final base = ThemeData.dark();
     return MaterialApp(
       title: 'rtmp_camera',
-      theme: base.copyWith(
-        colorScheme: base.colorScheme.copyWith(
-          primary: liveAccent,
-          secondary: liveAccent,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: liveAccent,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ),
-      home: const ConfigScreen(),
+      themeMode: ThemeMode.system,
+      theme: AppTheme.light(),
+      darkTheme: AppTheme.dark(),
+      home: const SplashScreen(),
     );
   }
 }

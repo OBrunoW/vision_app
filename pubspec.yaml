@@ -13,9 +13,37 @@ dependencies:
   shared_preferences: ^2.2.2
   wakelock_plus: ^1.1.4
   rtmp_streaming: ^1.0.5
+  flutter_svg: ^2.3.0
 
 dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.14.4
   flutter_lints: ^6.0.0
+  flutter_native_splash: ^2.4.7
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/svg/logo-visor.svg
+
+flutter_native_splash:
+  android: true
+  ios: true
+  color: "#f7f7f8"
+  color_dark: "#0f172a"
+  image: assets/png/splash_logo.png
+  image_dark: assets/png/splash_logo.png
+  android_12:
+    color: "#f7f7f8"
+    color_dark: "#0f172a"
+    image: assets/png/splash_logo.png
+    image_dark: assets/png/splash_logo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/png/app_icon.png
+  adaptive_icon_background: "#1e40af"
+  adaptive_icon_foreground: assets/png/app_icon.png
+  remove_alpha_ios: true

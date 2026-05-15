@@ -56,16 +56,16 @@ class _LiveIndicatorState extends State<LiveIndicator>
           Container(
             width: 10,
             height: 10,
-            decoration: const BoxDecoration(
-              color: Color(0xFFE53935),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.secondary,
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'AO VIVO',
             style: TextStyle(
-              color: Color(0xFFE53935),
+              color: Theme.of(context).colorScheme.secondary,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
             ),

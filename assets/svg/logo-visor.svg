@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+
+  <!-- Corpo da câmera -->
+  <rect x="56" y="156" width="400" height="260" rx="36" fill="#1e40af"/>
+
+  <!-- Bump superior centralizado -->
+  <rect x="166" y="120" width="130" height="52" rx="16" fill="#1e40af"/>
+
+  <!-- Lente — anéis -->
+  <circle cx="256" cy="286" r="100" fill="#172554"/>
+  <circle cx="256" cy="286" r="82" fill="#0f172a" stroke="#1d4ed8" stroke-width="2"/>
+  <circle cx="256" cy="286" r="62" fill="#0a0f1e" stroke="#2563eb" stroke-width="2"/>
+  <circle cx="256" cy="286" r="42" fill="#1e3a8a"/>
+  <circle cx="256" cy="286" r="26" fill="#1d4ed8"/>
+
+  <!-- Reflexo lente -->
+  <circle cx="242" cy="272" r="10" fill="#93c5fd" opacity="0.35"/>
+
+  <!-- Visor esquerdo -->
+  <rect x="84" y="180" width="56" height="38" rx="10" fill="#172554"/>
+  <circle cx="112" cy="199" r="12" fill="#0f172a"/>
+  <circle cx="112" cy="199" r="7" fill="#1e3a8a"/>
+
+  <!-- Botão shutter direito -->
+  <circle cx="422" cy="196" r="26" fill="#172554"/>
+  <circle cx="422" cy="196" r="17" fill="#2563eb"/>
+
+  <!-- Bounding box scanlines -->
+  <path d="M180 226 L156 226 L156 250" fill="none" stroke="#93c5fd" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M332 226 L356 226 L356 250" fill="none" stroke="#93c5fd" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M156 342 L156 366 L180 366" fill="none" stroke="#93c5fd" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M356 342 L356 366 L332 366" fill="none" stroke="#93c5fd" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Linha de scan -->
+  <rect x="156" y="295" width="200" height="1.5" fill="#93c5fd" opacity="0.5"/>
+
+  <!-- LED indicador -->
+  <circle cx="406" cy="172" r="7" fill="#34d399"/>
+  <circle cx="406" cy="172" r="4" fill="#6ee7b7"/>
+
+</svg>

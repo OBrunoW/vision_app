@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:rtmp_streaming/camera.dart' as streaming;
@@ -110,7 +111,9 @@ class RtmpService extends ChangeNotifier {
       if (c.value.isStreamingVideoRtmp == true) {
         await c.stopVideoStreaming();
       }
-      await c.prepareForVideoStreaming();
+      if (Platform.isIOS) {
+        await c.prepareForVideoStreaming();
+      }
       await c.startVideoStreaming(url);
       if (!_wantsStream) return;
       _state = RtmpSessionState.live;

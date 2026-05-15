@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'streaming_screen.dart';
@@ -59,12 +60,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(8),
-      borderSide: BorderSide(color: Colors.grey.shade700),
-    );
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: scheme.surface,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -74,16 +72,17 @@ class _ConfigScreenState extends State<ConfigScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  SvgPicture.asset(
+                    'assets/svg/logo-visor.svg',
+                    width: 120,
+                    height: 120,
+                  ),
+                  const SizedBox(height: 28),
                   TextFormField(
                     controller: _nameController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
+                    style: TextStyle(color: scheme.onSurface),
+                    decoration: const InputDecoration(
                       labelText: 'Nome da câmera',
-                      labelStyle: TextStyle(color: Colors.grey.shade400),
-                      enabledBorder: border,
-                      focusedBorder: border.copyWith(
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
                     ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) {
@@ -95,14 +94,9 @@ class _ConfigScreenState extends State<ConfigScreen> {
                   const SizedBox(height: 20),
                   TextFormField(
                     controller: _urlController,
-                    style: const TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
+                    style: TextStyle(color: scheme.onSurface),
+                    decoration: const InputDecoration(
                       labelText: 'URL RTMP',
-                      labelStyle: TextStyle(color: Colors.grey.shade400),
-                      enabledBorder: border,
-                      focusedBorder: border.copyWith(
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
                     ),
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) {

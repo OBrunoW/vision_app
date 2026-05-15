@@ -184,8 +184,9 @@ class _StreamingScreenState extends State<StreamingScreen> {
   @override
   Widget build(BuildContext context) {
     if (_permissionIssue != null) {
+      final scheme = Theme.of(context).colorScheme;
       return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: scheme.surface,
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(24),
@@ -195,7 +196,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
                 Text(
                   _permissionIssue!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white70),
+                  style: TextStyle(color: scheme.onSurface.withValues(alpha: 0.85)),
                 ),
                 const SizedBox(height: 24),
                 TextButton(
@@ -210,13 +211,18 @@ class _StreamingScreenState extends State<StreamingScreen> {
     }
 
     if (_initializing || _controller == null) {
-      return const Scaffold(
-        backgroundColor: Colors.black,
-        body: Center(child: CircularProgressIndicator()),
+      final scheme = Theme.of(context).colorScheme;
+      return Scaffold(
+        backgroundColor: scheme.surface,
+        body: Center(
+          child: CircularProgressIndicator(color: scheme.primary),
+        ),
       );
     }
 
     final ctrl = _controller!;
+    final scheme = Theme.of(context).colorScheme;
+    final errColor = scheme.error;
     final topMessage = _rtmp.state == RtmpSessionState.connecting
         ? 'Conectando…'
         : _rtmp.state == RtmpSessionState.error
@@ -282,7 +288,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
                         topMessage,
                         style: TextStyle(
                           color: _rtmp.state == RtmpSessionState.error
-                              ? Colors.redAccent
+                              ? errColor
                               : Colors.white70,
                         ),
                       ),
