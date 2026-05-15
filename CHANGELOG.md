@@ -5,6 +5,18 @@ Todos os itens notáveis deste projeto serão documentados neste ficheiro.
 O formato segue [Keep a Changelog](https://keepachangelog.com/pt-PT/1.0.0/),
 e o projeto adere ao [Versionamento Semântico](https://semver.org/lang/pt-BR/).
 
+## [1.1.0] — 2026-05-15
+
+### Alterado
+- Fluxo **ecrã único**: configuração RTMP (nome, URL, iniciar, parar, trocar câmera) integrada no mesmo ecrã que o *preview* da câmera, com painel inferior em **vidro** (*blur* e transparências).
+- **Splash** mais curta e navegação direta para a câmera (sem ecrã de configuração separado).
+
+### Removido
+- `ConfigScreen` — substituída pela experiência unificada em `StreamingScreen`.
+
+### Documentação
+- `README.md` atualizado (estrutura de pastas e descrição do fluxo).
+
 ## [1.0.0] — 2026-05-15
 
 ### Adicionado

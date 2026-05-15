@@ -1,38 +1,36 @@
 # rtmp_camera
 
-Aplicação Flutter que transforma o telemóvel numa câmera de streaming **RTMP**. Indica um nome para o fluxo e a URL base do servidor, vê o *preview* em ecrã inteiro, alterna entre câmera frontal e traseira e segue o tempo no ar.
+Aplicação Flutter que transforma o telemóvel numa câmera de streaming **RTMP**. O *preview* ocupa o ecrã inteiro: configuras nome e URL num painel de vidro na parte inferior, inicias a transmissão no mesmo ecrã, podes alternar câmera e seguir o tempo no ar.
 
-## Lançamento v1.0.0
+## Lançamento v1.1.0
 
-Primeira versão estável. Consulta o ficheiro [`CHANGELOG.md`](CHANGELOG.md) para o detalhe das funcionalidades e correções.
+Versão atual. Inclui **ecrã único** (câmera + configuração em painel de vidro) e **splash** mais rápida. Detalhes em [`CHANGELOG.md`](CHANGELOG.md).
 
-**Tag Git:** `v1.0.0`  
-**Versão no `pubspec.yaml`:** `1.0.0+1` (nome do pacote: `vision_app`)
+**Tag Git:** `v1.1.0`  
+**Versão no `pubspec.yaml`:** `1.1.0+2` (nome do pacote: `vision_app`)
+
+A tag `v1.0.0` mantém-se no histórico para a primeira versão estável anterior.
 
 ### Publicar no GitHub (sem GitHub CLI)
 
-1. Cria um repositório vazio no GitHub (ex.: `vision_app`).
-2. Na raiz do projeto:
+1. Na raiz do projeto (com `origin` já configurado):
 
 ```bash
-git remote add origin https://github.com/TEU_UTILIZADOR/vision_app.git
-git branch -M main
 git push -u origin main
-git push origin v1.0.0
+git push origin v1.1.0
 ```
 
-3. No GitHub: **Releases → Create a new release**, escolhe a tag `v1.0.0` e cola o resumo do `CHANGELOG.md` na descrição.
+2. No GitHub: **Releases → Create a new release**, escolhe a tag `v1.1.0` e cola na descrição o conteúdo da secção **[1.1.0]** do `CHANGELOG.md`.
 
 ### Publicar com GitHub CLI (`gh`)
 
 ```bash
-winget install GitHub.cli
-gh auth login
-gh repo create vision_app --private --source=. --push
-git tag -a v1.0.0 -m "Lançamento v1.0.0"   # se ainda não existir
-git push origin v1.0.0
-gh release create v1.0.0 --title "rtmp_camera v1.0.0" --notes-file CHANGELOG.md
+git push origin main
+git push origin v1.1.0
+gh release create v1.1.0 --title "rtmp_camera v1.1.0" --notes-file CHANGELOG.md
 ```
+
+*(Para a primeira publicação do repositório, vê os passos da versão 1.0.0 no histórico do Git ou documentação antiga.)*
 
 ---
 
@@ -56,7 +54,6 @@ lib/
 │   └── app_theme.dart
 ├── screens/
 │   ├── splash_screen.dart
-│   ├── config_screen.dart
 │   └── streaming_screen.dart
 ├── services/
 │   └── rtmp_service.dart
