@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:go_router/go_router.dart';
 
-import 'streaming_screen.dart';
+import '../core/router/app_routes.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,11 +17,7 @@ class _SplashScreenState extends State<SplashScreen> {
     super.initState();
     Future<void>.delayed(const Duration(milliseconds: 320), () {
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(
-          builder: (context) => const StreamingScreen(),
-        ),
-      );
+      context.go(AppRoutes.camera);
     });
   }
 
