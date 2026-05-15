@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../app_branding.dart';
 import '../../screens/splash_screen.dart';
 import '../../screens/streaming_screen.dart';
 import '../../theme/app_theme.dart';
@@ -30,7 +31,7 @@ class VisionApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
-      title: 'rtmp_camera',
+      title: kAppDisplayName,
       themeMode: ThemeMode.system,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),

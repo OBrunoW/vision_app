@@ -17,11 +17,21 @@ class RtmpForegroundStreamHandler extends TaskHandler {
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {}
 
   @override
+  void onNotificationPressed() {
+    FlutterForegroundTask.launchApp();
+  }
+
+  @override
   void onNotificationButtonPressed(String id) {
-    if (id == 'stop_stream') {
-      FlutterForegroundTask.sendDataToMain(<String, String>{
-        'action': 'stop_from_notification',
-      });
+    switch (id) {
+      case 'start_stream':
+        FlutterForegroundTask.sendDataToMain(<String, String>{
+          'action': 'start_from_notification',
+        });
+      case 'stop_stream':
+        FlutterForegroundTask.sendDataToMain(<String, String>{
+          'action': 'stop_from_notification',
+        });
     }
   }
 }

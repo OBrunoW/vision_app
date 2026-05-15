@@ -3,6 +3,37 @@ import 'package:vision_app/features/streaming/streaming_form_utils.dart';
 import 'package:vision_app/services/rtmp_service.dart';
 
 void main() {
+  group('validateStreamConfig', () {
+    test('rejeita URL vazia', () {
+      expect(
+        validateStreamConfig(baseUrl: '', cameraName: 'cam', streamKey: ''),
+        isNotNull,
+      );
+    });
+
+    test('rejeita quando falta nome e chave', () {
+      expect(
+        validateStreamConfig(
+          baseUrl: 'rtmp://host/live',
+          cameraName: '  ',
+          streamKey: '',
+        ),
+        isNotNull,
+      );
+    });
+
+    test('aceita configuração válida', () {
+      expect(
+        validateStreamConfig(
+          baseUrl: 'rtmp://host/live',
+          cameraName: 'cam1',
+          streamKey: '',
+        ),
+        isNull,
+      );
+    });
+  });
+
   group('rtmpPathSegmentForConnect', () {
     test('prioriza a chave de stream quando não está vazia', () {
       expect(

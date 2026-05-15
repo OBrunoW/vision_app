@@ -1,3 +1,22 @@
+/// Valida URL e segmento do fluxo sem depender de um [Form] na árvore de widgets.
+String? validateStreamConfig({
+  required String baseUrl,
+  required String cameraName,
+  required String streamKey,
+}) {
+  final url = baseUrl.trim();
+  if (url.isEmpty) return 'Preencha a URL RTMP (base).';
+  try {
+    Uri.parse(url);
+  } on FormatException {
+    return 'URL RTMP inválida.';
+  }
+  if (rtmpPathSegmentForConnect(cameraName, streamKey).isEmpty) {
+    return 'Preencha o nome do fluxo ou a chave de transmissão.';
+  }
+  return null;
+}
+
 /// Segmento final do path RTMP (nome MediaMTX ou chave YouTube, etc.).
 String rtmpPathSegmentForConnect(String cameraName, String streamKey) {
   final k = streamKey.trim();

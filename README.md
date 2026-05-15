@@ -4,7 +4,7 @@ Aplicação Flutter que transforma o telemóvel numa câmera de streaming **RTMP
 
 ## Lançamento v1.1.0
 
-Versão atual. Inclui **ecrã único** (câmera + configuração em painel de vidro) e **splash** mais rápida. Detalhes em [`CHANGELOG.md`](CHANGELOG.md).
+Versão atual: **ecrã único** (câmera + configuração em painel de vidro) e **splash** mais rápida.
 
 **Tag Git:** `v1.1.0`  
 **Versão no `pubspec.yaml`:** `1.1.0+2` (nome do pacote: `vision_app`)
@@ -20,14 +20,14 @@ git push -u origin main
 git push origin v1.1.0
 ```
 
-2. No GitHub: **Releases → Create a new release**, escolhe a tag `v1.1.0` e cola na descrição o conteúdo da secção **[1.1.0]** do `CHANGELOG.md`.
+2. No GitHub: **Releases → Create a new release**, escolhe a tag `v1.1.0` e escreve a descrição da release no editor (resumo das alterações).
 
 ### Publicar com GitHub CLI (`gh`)
 
 ```bash
 git push origin main
 git push origin v1.1.0
-gh release create v1.1.0 --title "rtmp_camera v1.1.0" --notes-file CHANGELOG.md
+gh release create v1.1.0 --title "rtmp_camera v1.1.0" --notes "Ecrã único de câmera, painel de vidro e splash rápida."
 ```
 
 *(Para a primeira publicação do repositório, vê os passos da versão 1.0.0 no histórico do Git ou documentação antiga.)*
@@ -61,20 +61,14 @@ lib/
     └── live_indicator.dart
 assets/
 ├── svg/logo-visor.svg
-└── png/                    # gerado pelo teste (ver abaixo)
+└── png/
 ```
 
 ## Identidade e tema
 
 - Tema **claro/escuro** segue o sistema (`ThemeMode.system`).
 - Cores de marca extraídas do logo (azuis e verde); restantes neutras estilo ChatGPT.
-- **Regenerar ícones e splash nativos** após alterar o SVG:
-
-```bash
-flutter test test/export_branding_pngs_test.dart
-dart run flutter_native_splash:create
-dart run flutter_launcher_icons
-```
+- O vetor do logo está em `assets/svg/`; os *bitmaps* e recursos nativos de ícone e splash correspondentes estão em `assets/png/`, `android/` e `ios/` (já versionados no repositório).
 
 ## Configuração e execução
 

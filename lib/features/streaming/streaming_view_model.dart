@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -10,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:signals/signals_flutter.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
+import '../../core/app_branding.dart';
 import '../../services/rtmp_service.dart';
 import '../../services/stream_foreground_task.dart';
 import 'streaming_form_utils.dart';
@@ -43,6 +45,8 @@ class StreamingViewModel {
   final elapsed = signal<Duration>(Duration.zero);
   final lastKnownPosition = signal<Position?>(null);
   final sessionState = signal<RtmpSessionState>(RtmpSessionState.idle);
+  /// Serviço em primeiro plano ativo após "Minimizar" (mantém-se mesmo sem stream).
+  final backgroundMode = signal<bool>(false);
 
   streaming.CameraController? _controller;
   List<streaming.CameraDescription>? _cameras;
@@ -74,10 +78,12 @@ class StreamingViewModel {
   }
 
   void _onForegroundTaskData(Object data) {
-    if (data is Map &&
-        data['action'] == 'stop_from_notification' &&
-        !_disposed) {
-      unawaited(stopBroadcast());
+    if (data is! Map || _disposed) return;
+    switch (data['action']) {
+      case 'start_from_notification':
+        unawaited(persistAndStart());
+      case 'stop_from_notification':
+        unawaited(stopBroadcast());
     }
   }
 
@@ -98,6 +104,9 @@ class StreamingViewModel {
         _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
           if (_disposed) return;
           elapsed.value = elapsed.peek() + const Duration(seconds: 1);
+          if (Platform.isAndroid && backgroundMode.peek()) {
+            unawaited(_updateForegroundNotification());
+          }
         });
       }
     }
@@ -116,42 +125,103 @@ class StreamingViewModel {
 
   Future<void> _syncBroadcastForeground() async {
     if (!Platform.isAndroid) return;
-    final active = _rtmp.state == RtmpSessionState.live ||
+    final keepService = backgroundMode.peek() ||
+        _rtmp.state == RtmpSessionState.live ||
         _rtmp.state == RtmpSessionState.connecting;
-    if (!active) {
+    if (!keepService) {
       if (await FlutterForegroundTask.isRunningService) {
         await FlutterForegroundTask.stopService();
       }
       return;
     }
-    final notif = await FlutterForegroundTask.checkNotificationPermission();
-    if (notif != NotificationPermission.granted) {
-      await FlutterForegroundTask.requestNotificationPermission();
-    }
-    final live = _rtmp.state == RtmpSessionState.live;
-    final text = live
-        ? 'Em direto — toca para voltar à app'
-        : 'A ligar ao servidor…';
     if (!await FlutterForegroundTask.isRunningService) {
-      await FlutterForegroundTask.startService(
-        serviceId: 256,
-        notificationTitle: 'rtmp_camera a transmitir',
-        notificationText: text,
-        serviceTypes: const [
-          ForegroundServiceTypes.camera,
-          ForegroundServiceTypes.microphone,
-        ],
-        notificationButtons: const [
-          NotificationButton(id: 'stop_stream', text: 'Parar'),
-        ],
-        callback: startStreamForegroundCallback,
-      );
-    } else {
-      await FlutterForegroundTask.updateService(
-        notificationTitle: 'rtmp_camera a transmitir',
-        notificationText: text,
-      );
+      await _startForegroundService();
+      return;
     }
+    await _updateForegroundNotification();
+  }
+
+  List<NotificationButton> _notificationButtons() {
+    final live = _rtmp.state == RtmpSessionState.live;
+    final connecting = _rtmp.state == RtmpSessionState.connecting;
+    if (live || connecting) {
+      return const [NotificationButton(id: 'stop_stream', text: 'Parar')];
+    }
+    return const [NotificationButton(id: 'start_stream', text: 'Iniciar')];
+  }
+
+  String _notificationText() {
+    switch (_rtmp.state) {
+      case RtmpSessionState.live:
+        return formatStreamingElapsed(elapsed.peek());
+      case RtmpSessionState.connecting:
+        return 'A ligar…';
+      case RtmpSessionState.error:
+        final msg = _rtmp.errorMessage?.trim();
+        if (msg == null || msg.isEmpty) return 'Erro';
+        return msg.length > 48 ? '${msg.substring(0, 48)}…' : msg;
+      case RtmpSessionState.idle:
+        return '';
+    }
+  }
+
+  Future<void> _startForegroundService() async {
+    if (!Platform.isAndroid) return;
+    if (await FlutterForegroundTask.isRunningService) {
+      await _updateForegroundNotification();
+      return;
+    }
+    await FlutterForegroundTask.startService(
+      serviceId: 256,
+      notificationTitle: kAppDisplayName,
+      notificationText: _notificationText(),
+      notificationIcon: kForegroundNotificationIcon,
+      serviceTypes: const [
+        ForegroundServiceTypes.camera,
+        ForegroundServiceTypes.microphone,
+      ],
+      notificationButtons: _notificationButtons(),
+      callback: startStreamForegroundCallback,
+    );
+  }
+
+  Future<void> _updateForegroundNotification() async {
+    if (!Platform.isAndroid) return;
+    if (!await FlutterForegroundTask.isRunningService) return;
+    await FlutterForegroundTask.updateService(
+      notificationTitle: kAppDisplayName,
+      notificationText: _notificationText(),
+      notificationIcon: kForegroundNotificationIcon,
+      notificationButtons: _notificationButtons(),
+    );
+  }
+
+  /// Minimiza a app e ativa o serviço em primeiro plano (com ou sem stream).
+  Future<void> minimizeToBackground() async {
+    if (Platform.isAndroid) {
+      backgroundMode.value = true;
+      await _startForegroundService();
+    }
+    FlutterForegroundTask.minimizeApp();
+  }
+
+  String? _configValidationError() => validateStreamConfig(
+        baseUrl: urlController.text,
+        cameraName: nameController.text,
+        streamKey: streamKeyController.text,
+      );
+
+  Future<void> saveConfig() async {
+    final err = _configValidationError();
+    if (err != null) {
+      _snack(err);
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyName, nameController.text.trim());
+    await prefs.setString(_keyUrl, urlController.text.trim());
+    await prefs.setString(_keyStreamKey, streamKeyController.text.trim());
+    if (!_disposed) configOpen.value = false;
   }
 
   Future<void> _bootstrap() async {
@@ -183,7 +253,8 @@ class StreamingViewModel {
       ctrl = streaming.CameraController(
         streaming.ResolutionPreset.high,
         enableAudio: true,
-        androidUseOpenGL: true,
+        // OpenGL pode deixar o preview preto em alguns Xiaomi/MediaTek.
+        androidUseOpenGL: false,
       );
       await ctrl.initialize(list[_cameraIndex]);
       if (Platform.isIOS) {
@@ -197,6 +268,9 @@ class StreamingViewModel {
       }
       _controller = ctrl;
       initializing.value = false;
+      if (Platform.isAndroid) {
+        await _ensureNotificationPermission();
+      }
       unawaited(_requestLocationPermission());
     } catch (e) {
       await ctrl?.dispose();
@@ -206,6 +280,16 @@ class StreamingViewModel {
         initializing.value = false;
       }
     }
+  }
+
+  Future<void> _ensureNotificationPermission() async {
+    try {
+      final notif = await FlutterForegroundTask.checkNotificationPermission();
+      if (notif == NotificationPermission.granted) return;
+      await FlutterForegroundTask.requestNotificationPermission();
+    } on PlatformException catch (_) {
+      // Cancelado ou outro pedido de permissão em curso.
+    } catch (_) {}
   }
 
   Future<void> _requestLocationPermission() async {
@@ -244,16 +328,14 @@ class StreamingViewModel {
   }
 
   Future<void> persistAndStart() async {
-    final url = urlController.text.trim();
-    final pathSeg = rtmpPathSegment;
-    if (url.isEmpty || pathSeg.isEmpty) {
+    final err = _configValidationError();
+    if (err != null) {
       configOpen.value = true;
-      _snack(
-        'Preencha a URL RTMP e o nome do fluxo ou a chave de transmissão.',
-      );
+      _snack(err);
       return;
     }
-    if (!(formKey.currentState?.validate() ?? false)) return;
+    final url = urlController.text.trim();
+    final pathSeg = rtmpPathSegment;
     final ctrl = _controller;
     if (ctrl == null) return;
     final name = nameController.text.trim();
@@ -281,25 +363,18 @@ class StreamingViewModel {
     final ctrl = _controller;
     final cams = _cameras;
     if (ctrl == null || cams == null || cams.length < 2) return;
-    final wasLive = ctrl.value.isStreamingVideoRtmp == true;
+
+    // O plugin troca a lente nativamente sem fechar o RTMP (ver exemplo do rtmp_streaming).
     _rtmp.beginMaintenance();
     try {
-      if (wasLive) {
-        await ctrl.stopVideoStreaming();
-      }
       _cameraIndex = (_cameraIndex + 1) % cams.length;
       final id = cams[_cameraIndex].name;
       if (id == null) return;
       await ctrl.switchCamera(id);
-      if (wasLive && !_disposed) {
-        await _rtmp.start(
-          ctrl,
-          urlController.text.trim(),
-          rtmpPathSegment,
-        );
-      }
     } catch (_) {
-      // Mantém estado; UI reconstrói via serviço/câmera.
+      if (!_disposed) {
+        _snack('Não foi possível trocar a câmera.');
+      }
     } finally {
       _rtmp.endMaintenance();
     }
@@ -337,5 +412,6 @@ class StreamingViewModel {
     elapsed.dispose();
     lastKnownPosition.dispose();
     sessionState.dispose();
+    backgroundMode.dispose();
   }
 }

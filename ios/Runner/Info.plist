@@ -8,6 +8,8 @@
 		<string>Necessário para transmissão de vídeo</string>
 		<key>NSMicrophoneUsageDescription</key>
 		<string>Necessário para transmissão de áudio</string>
+		<key>NSLocationWhenInUseUsageDescription</key>
+		<string>Usada para indicar ao servidor a posição desta câmara durante a transmissão.</string>
 		<key>CFBundleDevelopmentRegion</key>
 		<string>$(DEVELOPMENT_LANGUAGE)</string>
 		<key>CFBundleDisplayName</key>
