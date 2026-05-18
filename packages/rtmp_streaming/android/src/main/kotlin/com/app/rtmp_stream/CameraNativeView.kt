@@ -64,6 +64,7 @@ import com.pedro.encoder.input.gl.render.filters.`object`.GifObjectFilterRender
 import com.pedro.encoder.input.gl.render.filters.`object`.ImageObjectFilterRender
 import com.pedro.encoder.input.gl.render.filters.`object`.SurfaceFilterRender
 import com.pedro.encoder.input.gl.render.filters.`object`.TextObjectFilterRender
+import com.pedro.encoder.input.video.CameraHelper
 import com.pedro.encoder.input.video.CameraHelper.Facing.BACK
 import com.pedro.encoder.input.video.CameraHelper.Facing.FRONT
 import com.pedro.encoder.utils.gl.AspectRatioMode
@@ -81,6 +82,7 @@ import java.io.*
 
 class CameraNativeView(
     private var activity: Activity? = null,
+    private val viewContext: Context,
     private var enableAudio: Boolean = false,
     private val preset: ResolutionPreset,
     private var cameraName: String,
@@ -90,7 +92,8 @@ class CameraNativeView(
     PlatformView,
     SurfaceHolder.Callback,
     ConnectChecker {
-    private val glView = OpenGlView(activity)
+    // Tem de ser o context da Activity: o context do PlatformView não reflete retrato.
+    private val glView = OpenGlView(activity ?: viewContext)
     private lateinit var streamCamera: Camera2Base
     private var isRtspEncoder: Boolean = useRtspEncoder
     private var isSurfaceCreated = false
@@ -263,11 +266,15 @@ class CameraNativeView(
                 val streamingSize = CameraUtils.computeBestPreviewSize(activity, cameraName, preset)
                 val size = streamingSize["size"] as Size
                 val bitrateRes = streamingSize["bitrate"] as Int
+                val rotation = previewRotation()
                 streamCamera.forceBt709Color(forceBt709Color)
                 if ((enableAudio && streamCamera.prepareAudio()) && streamCamera.prepareVideo(
                         size.width,
                         size.height,
-                        bitrateRes
+                        bitrateRes,
+                        30,
+                        2,
+                        rotation,
                     )
                 ) {
                     streamCamera.startRecord(filePath)
@@ -298,12 +305,16 @@ class CameraNativeView(
                 val streamingSize = CameraUtils.computeBestPreviewSize(activity, cameraName, preset)
                 val size = streamingSize["size"] as Size
                 val bitrateRes = streamingSize["bitrate"] as Int
+                val rotation = previewRotation()
                 streamCamera.forceBt709Color(forceBt709Color)
                 (streamCamera.streamClient as? RtmpStreamClient)?.shouldSendPings(rtmpShouldSendPings)
                 if (streamCamera.isRecording || streamCamera.prepareAudio() && streamCamera.prepareVideo(
                         size.width,
                         size.height,
-                        bitrate ?: bitrateRes
+                        bitrate ?: bitrateRes,
+                        30,
+                        2,
+                        rotation,
                     )
                 ) {
                     // ready to start streaming
@@ -391,7 +402,11 @@ class CameraNativeView(
             result.error("cameraIdExist", "empty cameraId!", null)
             return
           }
-          streamCamera.switchCamera(cameraId)
+          cameraName = cameraId
+          if (streamCamera.isOnPreview) {
+            streamCamera.stopPreview()
+          }
+          startPreview(cameraId)
           result.success(null)
         } catch (e: CameraAccessException) {
             result.error("switchCameraFailed", e.message, null)
@@ -916,10 +931,12 @@ class CameraNativeView(
 //                Log.d("error", targetCamera)
                 val previewSize = CameraUtils.computeBestPreviewSize(activity, cameraName, preset)
                 val size = previewSize["size"] as Size
+                val rotation = previewRotation()
                 streamCamera.startPreview(
                     if (isFrontFacing(targetCamera)) FRONT else BACK,
                     size.width,
-                    size.height
+                    size.height,
+                    rotation,
                 )
             } catch (e: CameraAccessException) {
                 close()
@@ -983,6 +1000,12 @@ class CameraNativeView(
     override fun dispose() {
         isSurfaceCreated = false
         activity = null
+    }
+
+    /** Rotação que o RootEncoder espera (90 em retrato). */
+    private fun previewRotation(): Int {
+        val ctx = activity ?: viewContext
+        return CameraHelper.getCameraOrientation(ctx)
     }
 
     private fun isFrontFacing(cameraName: String): Boolean {

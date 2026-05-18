@@ -14,6 +14,7 @@ import android.util.Size
 import android.view.OrientationEventListener
 import androidx.annotation.RequiresApi
 import com.app.rtmp_stream.CameraPermissions.ResolutionPreset
+import com.pedro.encoder.input.video.CameraHelper
 import io.flutter.plugin.common.*
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.platform.PlatformViewRegistry
@@ -248,12 +249,22 @@ class MethodCallHandlerImplNew(
                     activity.runOnUiThread { result.error("CameraError", "Failed to compute preview size", null) }
                     return@postDelayed
                 }
+                val rotation = CameraHelper.getCameraOrientation(activity)
+                val previewW: Int
+                val previewH: Int
+                if (rotation == 90 || rotation == 270) {
+                    previewW = size.height
+                    previewH = size.width
+                } else {
+                    previewW = size.width
+                    previewH = size.height
+                }
                 val reply: MutableMap<String, Any> = HashMap()
                 reply["textureId"] = textureId
-                reply["previewWidth"] = size.width
-                reply["previewHeight"] = size.height
+                reply["previewWidth"] = previewW
+                reply["previewHeight"] = previewH
                 reply["eventId"] = id
-                reply["previewQuarterTurns"] = currentOrientation / 90
+                reply["previewQuarterTurns"] = 0
                 Log.i(
                     "TAG",
                     "open: width: " + reply["previewWidth"] + " height: " + reply["previewHeight"] + " currentOrientation: " + currentOrientation + " quarterTurns: " + reply["previewQuarterTurns"]

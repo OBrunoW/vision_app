@@ -1,7 +1,8 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:rtmp_streaming/camera.dart' as streaming;
@@ -27,6 +28,9 @@ class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
+    unawaited(
+      SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]),
+    );
     WidgetsBinding.instance.addObserver(this);
     _vm = getIt<StreamingViewModel>();
     _vm.attachSnack((message) {
@@ -654,11 +658,12 @@ class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingOb
   }
 }
 
-/// Pré-visualização em ecrã inteiro (cover) sem distorcer.
+/// Pré-visualização em ecrã inteiro sem distorcer.
 ///
-/// O [streaming.CameraPreview] no Android usa [AndroidView] e deve ficar dentro
-/// de [AspectRatio] com o valor do plugin (`altura / largura` do buffer).
-/// Um [SizedBox] exterior com outra proporção esticava a imagem.
+/// Entregamos à OpenGlView (nativa) todo o espaço disponível e deixamos o
+/// AspectRatioMode.Fill do RootEncoder fazer o crop-to-fill correto.
+/// Qualquer cálculo de proporção em Flutter causava esticamento porque a
+/// resolução reportada pelo plugin (preset) difere da que Camera2ApiManager usa.
 class _CameraPreviewFill extends StatelessWidget {
   const _CameraPreviewFill({super.key, required this.controller});
 
@@ -672,65 +677,11 @@ class _CameraPreviewFill extends StatelessWidget {
         if (controller.value.isInitialized != true) {
           return const ColoredBox(color: Colors.black);
         }
-
-        // previewSize.height / previewSize.width (buffer da câmara, coords. paisagem).
-        // RootEncoder roda o feed nativamente; se o dispositivo estiver em retrato
-        // e o buffer for paisagem (rawAspect < 1) usamos 1/rawAspect para cover.
-        final rawAspect = controller.value.aspectRatio;
-        if (rawAspect <= 0 || !rawAspect.isFinite) {
-          return const ColoredBox(color: Colors.black);
-        }
-        final orientation = MediaQuery.of(context).orientation;
-        final aspect = (orientation == Orientation.portrait && rawAspect < 1.0)
-            ? 1.0 / rawAspect
-            : rawAspect;
-
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final boxW = constraints.maxWidth;
-            final boxH = constraints.maxHeight;
-            if (!boxW.isFinite ||
-                !boxH.isFinite ||
-                boxW <= 0 ||
-                boxH <= 0) {
-              return const ColoredBox(color: Colors.black);
-            }
-
-            // Tamanho “fit” com proporção correta (sem esticar).
-            final double fitW;
-            final double fitH;
-            if (boxW / boxH > aspect) {
-              fitH = boxH;
-              fitW = boxH * aspect;
-            } else {
-              fitW = boxW;
-              fitH = boxW / aspect;
-            }
-
-            // Escala uniforme para cover (mantém proporção).
-            final scale = (boxW / fitW) > (boxH / fitH)
-                ? boxW / fitW
-                : boxH / fitH;
-
-            return ClipRect(
-              child: Center(
-                child: Transform.scale(
-                  scale: scale,
-                  child: SizedBox(
-                    width: fitW,
-                    height: fitH,
-                    child: AspectRatio(
-                      aspectRatio: aspect,
-                      child: streaming.CameraPreview(
-                        controller,
-                        key: ValueKey('cam_${controller.hashCode}'),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
+        return SizedBox.expand(
+          child: streaming.CameraPreview(
+            controller,
+            key: ValueKey('cam_${controller.hashCode}'),
+          ),
         );
       },
     );
