@@ -14,6 +14,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../core/app_branding.dart';
 import '../../services/rtmp_service.dart';
 import '../../services/stream_foreground_task.dart';
+import 'stream_protocol.dart';
 import 'streaming_form_utils.dart';
 
 typedef StreamSnack = void Function(String message);
@@ -33,6 +34,7 @@ class StreamingViewModel {
   static const _keyName = 'last_camera_name';
   static const _keyUrl = 'last_rtmp_url';
   static const _keyStreamKey = 'last_stream_key_optional';
+  static const _keyProtocol = 'last_stream_protocol';
 
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
@@ -45,8 +47,11 @@ class StreamingViewModel {
   final elapsed = signal<Duration>(Duration.zero);
   final lastKnownPosition = signal<Position?>(null);
   final sessionState = signal<RtmpSessionState>(RtmpSessionState.idle);
-  /// Serviço em primeiro plano ativo após "Minimizar" (mantém-se mesmo sem stream).
+  final protocol = signal<StreamProtocol>(StreamProtocol.rtmp);
+  /// Serviço em primeiro plano ativo apenas após "Minimizar".
   final backgroundMode = signal<bool>(false);
+  /// Incrementa para forçar reconstrução do [AndroidView] do preview.
+  final previewGeneration = signal<int>(0);
 
   streaming.CameraController? _controller;
   List<streaming.CameraDescription>? _cameras;
@@ -57,8 +62,13 @@ class StreamingViewModel {
   streaming.CameraController? get cameraController => _controller;
   List<streaming.CameraDescription>? get cameras => _cameras;
 
-  String get rtmpPathSegment =>
-      rtmpPathSegmentForConnect(nameController.text, streamKeyController.text);
+  String get pathSegment =>
+      pathSegmentForConnect(nameController.text, streamKeyController.text);
+
+  streaming.StreamEncoder get _nativeEncoder =>
+      protocol.peek() == StreamProtocol.rtsp
+          ? streaming.StreamEncoder.rtsp
+          : streaming.StreamEncoder.rtmp;
 
   void _touchForm() {
     if (_disposed) return;
@@ -79,11 +89,8 @@ class StreamingViewModel {
 
   void _onForegroundTaskData(Object data) {
     if (data is! Map || _disposed) return;
-    switch (data['action']) {
-      case 'start_from_notification':
-        unawaited(persistAndStart());
-      case 'stop_from_notification':
-        unawaited(stopBroadcast());
+    if (data['action'] == 'stop_from_notification') {
+      unawaited(stopBroadcast());
     }
   }
 
@@ -93,6 +100,7 @@ class StreamingViewModel {
     nameController.text = prefs.getString(_keyName) ?? '';
     urlController.text = prefs.getString(_keyUrl) ?? '';
     streamKeyController.text = prefs.getString(_keyStreamKey) ?? '';
+    protocol.value = StreamProtocol.fromPrefs(prefs.getString(_keyProtocol));
   }
 
   void _onRtmpState() {
@@ -125,13 +133,8 @@ class StreamingViewModel {
 
   Future<void> _syncBroadcastForeground() async {
     if (!Platform.isAndroid) return;
-    final keepService = backgroundMode.peek() ||
-        _rtmp.state == RtmpSessionState.live ||
-        _rtmp.state == RtmpSessionState.connecting;
-    if (!keepService) {
-      if (await FlutterForegroundTask.isRunningService) {
-        await FlutterForegroundTask.stopService();
-      }
+    if (!backgroundMode.peek()) {
+      await _stopForegroundServiceIfRunning();
       return;
     }
     if (!await FlutterForegroundTask.isRunningService) {
@@ -141,28 +144,75 @@ class StreamingViewModel {
     await _updateForegroundNotification();
   }
 
+  Future<void> _stopForegroundServiceIfRunning() async {
+    if (!Platform.isAndroid) return;
+    if (await FlutterForegroundTask.isRunningService) {
+      await FlutterForegroundTask.stopService();
+    }
+  }
+
   List<NotificationButton> _notificationButtons() {
+    final buttons = <NotificationButton>[
+      const NotificationButton(id: 'open_app', text: 'Abrir'),
+    ];
     final live = _rtmp.state == RtmpSessionState.live;
     final connecting = _rtmp.state == RtmpSessionState.connecting;
     if (live || connecting) {
-      return const [NotificationButton(id: 'stop_stream', text: 'Parar')];
+      buttons.add(const NotificationButton(id: 'stop_stream', text: 'Parar'));
     }
-    return const [NotificationButton(id: 'start_stream', text: 'Iniciar')];
+    return buttons;
+  }
+
+  String get _notificationTitle {
+    final live = _rtmp.state == RtmpSessionState.live;
+    final connecting = _rtmp.state == RtmpSessionState.connecting;
+    if (live) return '$kAppDisplayName · AO VIVO';
+    if (connecting) return '$kAppDisplayName · A ligar';
+    return kAppDisplayName;
   }
 
   String _notificationText() {
     switch (_rtmp.state) {
       case RtmpSessionState.live:
-        return formatStreamingElapsed(elapsed.peek());
+        return 'Transmissão em direto · ${formatStreamingElapsed(elapsed.peek())}';
       case RtmpSessionState.connecting:
-        return 'A ligar…';
+        return 'A ligar ao servidor de streaming…';
       case RtmpSessionState.error:
         final msg = _rtmp.errorMessage?.trim();
-        if (msg == null || msg.isEmpty) return 'Erro';
-        return msg.length > 48 ? '${msg.substring(0, 48)}…' : msg;
+        if (msg == null || msg.isEmpty) {
+          return 'Erro na transmissão. Abre a app para ver detalhes.';
+        }
+        return msg.length > 56 ? '${msg.substring(0, 56)}…' : msg;
       case RtmpSessionState.idle:
-        return '';
+        return 'Câmara em segundo plano. Toca em Abrir para voltar.';
     }
+  }
+
+  /// Utilizador voltou à app (task switcher ou botão Abrir na notificação).
+  Future<void> onAppResumed() async {
+    if (_disposed) return;
+    backgroundMode.value = false;
+    await _stopForegroundServiceIfRunning();
+    await _resumeCameraPreview();
+  }
+
+  /// App removida dos recentes ou processo a terminar.
+  Future<void> onAppDetached() async {
+    if (_disposed) return;
+    backgroundMode.value = false;
+    await _stopForegroundServiceIfRunning();
+  }
+
+  Future<void> _resumeCameraPreview() async {
+    final ctrl = _controller;
+    if (ctrl == null || ctrl.value.isInitialized != true) return;
+    try {
+      await ctrl.resumePreview();
+    } catch (_) {
+      await _reinitCamera();
+      return;
+    }
+    previewGeneration.value = previewGeneration.peek() + 1;
   }
 
   Future<void> _startForegroundService() async {
@@ -173,7 +223,7 @@ class StreamingViewModel {
     }
     await FlutterForegroundTask.startService(
       serviceId: 256,
-      notificationTitle: kAppDisplayName,
+      notificationTitle: _notificationTitle,
       notificationText: _notificationText(),
       notificationIcon: kForegroundNotificationIcon,
       serviceTypes: const [
@@ -189,7 +239,7 @@ class StreamingViewModel {
     if (!Platform.isAndroid) return;
     if (!await FlutterForegroundTask.isRunningService) return;
     await FlutterForegroundTask.updateService(
-      notificationTitle: kAppDisplayName,
+      notificationTitle: _notificationTitle,
       notificationText: _notificationText(),
       notificationIcon: kForegroundNotificationIcon,
       notificationButtons: _notificationButtons(),
@@ -206,6 +256,7 @@ class StreamingViewModel {
   }
 
   String? _configValidationError() => validateStreamConfig(
+        protocol: protocol.peek(),
         baseUrl: urlController.text,
         cameraName: nameController.text,
         streamKey: streamKeyController.text,
@@ -221,7 +272,42 @@ class StreamingViewModel {
     await prefs.setString(_keyName, nameController.text.trim());
     await prefs.setString(_keyUrl, urlController.text.trim());
     await prefs.setString(_keyStreamKey, streamKeyController.text.trim());
+    await prefs.setString(_keyProtocol, protocol.peek().name);
     if (!_disposed) configOpen.value = false;
+  }
+
+  Future<void> setProtocol(StreamProtocol next) async {
+    if (_disposed || protocol.peek() == next) return;
+    if (sessionState.peek() != RtmpSessionState.idle) {
+      _snack('Para a transmissão antes de mudar o protocolo.');
+      return;
+    }
+    protocol.value = next;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyProtocol, next.name);
+
+    if (Platform.isAndroid) {
+      final ctrl = _controller;
+      if (ctrl != null && ctrl.value.isInitialized == true) {
+        try {
+          await ctrl.switchStreamEncoder(_nativeEncoder);
+        } catch (_) {
+          await _reinitCamera();
+          return;
+        }
+      }
+    }
+  }
+
+  Future<void> _reinitCamera() async {
+    if (_disposed) return;
+    initializing.value = true;
+    permissionIssue.value = null;
+    final cam = _controller;
+    _controller = null;
+    await cam?.dispose();
+    if (_disposed) return;
+    await _bootstrap();
   }
 
   Future<void> _bootstrap() async {
@@ -255,6 +341,7 @@ class StreamingViewModel {
         enableAudio: true,
         // OpenGL pode deixar o preview preto em alguns Xiaomi/MediaTek.
         androidUseOpenGL: false,
+        streamEncoder: _nativeEncoder,
       );
       await ctrl.initialize(list[_cameraIndex]);
       if (Platform.isIOS) {
@@ -335,7 +422,7 @@ class StreamingViewModel {
       return;
     }
     final url = urlController.text.trim();
-    final pathSeg = rtmpPathSegment;
+    final pathSeg = pathSegment;
     final ctrl = _controller;
     if (ctrl == null) return;
     final name = nameController.text.trim();
@@ -343,6 +430,7 @@ class StreamingViewModel {
     await prefs.setString(_keyName, name);
     await prefs.setString(_keyUrl, url);
     await prefs.setString(_keyStreamKey, streamKeyController.text.trim());
+    await prefs.setString(_keyProtocol, protocol.peek().name);
     if (_disposed) return;
     await _refreshPositionForStream();
     if (_disposed) return;
@@ -356,6 +444,9 @@ class StreamingViewModel {
     if (!_disposed) {
       configOpen.value = false;
       lastKnownPosition.value = null;
+      if (backgroundMode.peek()) {
+        await _updateForegroundNotification();
+      }
     }
   }
 
@@ -398,9 +489,8 @@ class StreamingViewModel {
     final cam = _controller;
     _controller = null;
     unawaited(Future(() async {
-      if (Platform.isAndroid && await FlutterForegroundTask.isRunningService) {
-        await FlutterForegroundTask.stopService();
-      }
+      backgroundMode.value = false;
+      await _stopForegroundServiceIfRunning();
       await _rtmp.stop();
       await cam?.dispose();
       await WakelockPlus.disable();
@@ -412,6 +502,8 @@ class StreamingViewModel {
     elapsed.dispose();
     lastKnownPosition.dispose();
     sessionState.dispose();
+    protocol.dispose();
     backgroundMode.dispose();
+    previewGeneration.dispose();
   }
 }

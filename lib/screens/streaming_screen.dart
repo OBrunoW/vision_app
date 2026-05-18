@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,7 @@ import 'package:rtmp_streaming/camera.dart' as streaming;
 import 'package:signals/signals_flutter.dart';
 
 import '../core/di/injection.dart';
+import '../features/streaming/stream_protocol.dart';
 import '../features/streaming/streaming_form_utils.dart';
 import '../features/streaming/streaming_view_model.dart';
 import '../services/rtmp_service.dart';
@@ -19,12 +21,13 @@ class StreamingScreen extends StatefulWidget {
   State<StreamingScreen> createState() => _StreamingScreenState();
 }
 
-class _StreamingScreenState extends State<StreamingScreen> {
+class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingObserver {
   late final StreamingViewModel _vm;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _vm = getIt<StreamingViewModel>();
     _vm.attachSnack((message) {
       if (!context.mounted) return;
@@ -35,8 +38,23 @@ class _StreamingScreenState extends State<StreamingScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _vm.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        unawaited(_vm.onAppResumed());
+      case AppLifecycleState.detached:
+        unawaited(_vm.onAppDetached());
+      case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.hidden:
+        break;
+    }
   }
 
   static const _glassBorder = Color(0x66FFFFFF);
@@ -199,6 +217,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
     StreamingViewModel vm,
   ) {
     final live = vm.sessionState.value == RtmpSessionState.live;
+    final proto = vm.protocol.value;
     if (!vm.configOpen.value || live) return const SizedBox.shrink();
 
     return Positioned.fill(
@@ -228,7 +247,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(
-                              'Definições RTMP',
+                              'Definições ${proto.label}',
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.95),
                                 fontSize: 17,
@@ -237,11 +256,37 @@ class _StreamingScreenState extends State<StreamingScreen> {
                               textAlign: TextAlign.center,
                             ),
                             const SizedBox(height: 14),
+                            SegmentedButton<StreamProtocol>(
+                              segments: [
+                                for (final p in StreamProtocol.values)
+                                  ButtonSegment(
+                                    value: p,
+                                    label: Text(p.label),
+                                  ),
+                              ],
+                              selected: {proto},
+                              onSelectionChanged: (selected) {
+                                unawaited(vm.setProtocol(selected.first));
+                              },
+                              style: ButtonStyle(
+                                foregroundColor: WidgetStateProperty.resolveWith(
+                                  (states) => states.contains(WidgetState.selected)
+                                      ? Colors.white
+                                      : Colors.white.withValues(alpha: 0.65),
+                                ),
+                                backgroundColor: WidgetStateProperty.resolveWith(
+                                  (states) => states.contains(WidgetState.selected)
+                                      ? const Color(0xFF2563EB)
+                                      : Colors.white.withValues(alpha: 0.08),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
                             TextFormField(
                               controller: vm.urlController,
                               style: const TextStyle(color: Colors.white, fontSize: 15),
-                              decoration: _fieldDecoration('URL RTMP (base)').copyWith(
-                                helperText: 'Sem o último segmento (ex.: …/live ou …/live2)',
+                              decoration: _fieldDecoration('Endereço do servidor').copyWith(
+                                helperText: 'URL base sem o nome do fluxo no fim',
                                 helperStyle: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.45),
                                   fontSize: 11,
@@ -255,7 +300,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
                               controller: vm.nameController,
                               style: const TextStyle(color: Colors.white, fontSize: 15),
                               decoration: _fieldDecoration('Nome do fluxo').copyWith(
-                                helperText: 'MediaMTX: nome da câmera no caminho',
+                                helperText: 'Identificador desta câmera no servidor',
                                 helperStyle: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.45),
                                   fontSize: 11,
@@ -275,7 +320,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
                               controller: vm.streamKeyController,
                               style: const TextStyle(color: Colors.white, fontSize: 15),
                               decoration: _fieldDecoration('Chave de transmissão (opcional)').copyWith(
-                                helperText: 'YouTube: cola a chave; tem prioridade sobre o nome.',
+                                helperText: 'Se o serviço usar chave, tem prioridade sobre o nome',
                                 helperStyle: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.45),
                                   fontSize: 11,
@@ -284,8 +329,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              'Só uma câmera é enviada por fluxo RTMP. Duas lentes em simultâneo não é suportado por este codificador.\n'
-                              'A localização (em uso) é pedida ao preparar a câmara e lida de novo ao iniciar o stream, para poderes enviar ao servidor.',
+                              'RTSP só no Android. A localização é pedida ao iniciar a transmissão.',
                               style: TextStyle(
                                 color: Colors.white.withValues(alpha: 0.48),
                                 fontSize: 11,
@@ -521,7 +565,10 @@ class _StreamingScreenState extends State<StreamingScreen> {
             fit: StackFit.expand,
             children: [
               Positioned.fill(
-                child: _CameraPreviewFill(controller: ctrl),
+                child: _CameraPreviewFill(
+                  key: ValueKey('preview_${_vm.previewGeneration.value}'),
+                  controller: ctrl,
+                ),
               ),
               Positioned(
                 top: 0,
@@ -555,7 +602,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
                             : Icons.settings_outlined,
                         tooltip: _vm.configOpen.value
                             ? 'Fechar'
-                            : 'Definições RTMP',
+                            : 'Definições de transmissão',
                         onPressed: _vm.toggleConfig,
                       ),
                     ),
@@ -580,7 +627,7 @@ class _StreamingScreenState extends State<StreamingScreen> {
 /// de [AspectRatio] com o valor do plugin (`altura / largura` do buffer).
 /// Um [SizedBox] exterior com outra proporção esticava a imagem.
 class _CameraPreviewFill extends StatelessWidget {
-  const _CameraPreviewFill({required this.controller});
+  const _CameraPreviewFill({super.key, required this.controller});
 
   final streaming.CameraController controller;
 
@@ -635,7 +682,10 @@ class _CameraPreviewFill extends StatelessWidget {
                     height: fitH,
                     child: AspectRatio(
                       aspectRatio: aspect,
-                      child: streaming.CameraPreview(controller),
+                      child: streaming.CameraPreview(
+                        controller,
+                        key: ValueKey('cam_${controller.hashCode}'),
+                      ),
                     ),
                   ),
                 ),

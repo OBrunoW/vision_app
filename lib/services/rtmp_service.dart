@@ -11,13 +11,17 @@ enum RtmpSessionState {
   error,
 }
 
-String buildRtmpStreamUrl(String baseUrl, String streamName) {
+String buildStreamUrl(String baseUrl, String streamName) {
   final uri = Uri.parse(baseUrl.trim());
   final segments = List<String>.from(uri.pathSegments)
     ..removeWhere((e) => e.isEmpty);
   segments.add(streamName.trim());
   return uri.replace(pathSegments: segments).toString();
 }
+
+@Deprecated('Use buildStreamUrl')
+String buildRtmpStreamUrl(String baseUrl, String streamName) =>
+    buildStreamUrl(baseUrl, streamName);
 
 class RtmpService extends ChangeNotifier {
   RtmpSessionState _state = RtmpSessionState.idle;
@@ -40,7 +44,7 @@ class RtmpService extends ChangeNotifier {
   ) async {
     await stop();
     _controller = controller;
-    _streamUrl = buildRtmpStreamUrl(rtmpBaseUrl, cameraName);
+    _streamUrl = buildStreamUrl(rtmpBaseUrl, cameraName);
     _wantsStream = true;
     _attemptsLeft = 3;
     _errorMessage = null;

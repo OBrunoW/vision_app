@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:signals/signals_flutter.dart';
 
-import 'core/app_branding.dart';
 import 'core/di/injection.dart';
 import 'core/router/app_router.dart';
 
@@ -16,10 +15,13 @@ Future<void> main() async {
   FlutterForegroundTask.initCommunicationPort();
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
-      channelId: 'vision_camera',
-      channelName: kAppDisplayName,
-      channelImportance: NotificationChannelImportance.LOW,
-      priority: NotificationPriority.LOW,
+      channelId: 'vision_stream',
+      channelName: 'Vision — Transmissão',
+      channelDescription:
+          'Controlo da câmara e da transmissão em segundo plano',
+      channelImportance: NotificationChannelImportance.DEFAULT,
+      priority: NotificationPriority.DEFAULT,
+      showWhen: true,
       onlyAlertOnce: true,
     ),
     iosNotificationOptions: const IOSNotificationOptions(

@@ -475,10 +475,9 @@ packages:
   rtmp_streaming:
     dependency: "direct main"
     description:
-      name: rtmp_streaming
-      sha256: f54c0c0443df65086d2936b0f3432fbb351fc35bffba69aa2b004ee7ecf45d40
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/rtmp_streaming"
+      relative: true
+    source: path
     version: "1.0.5"
   shared_preferences:
     dependency: "direct main"

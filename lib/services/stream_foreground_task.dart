@@ -24,10 +24,8 @@ class RtmpForegroundStreamHandler extends TaskHandler {
   @override
   void onNotificationButtonPressed(String id) {
     switch (id) {
-      case 'start_stream':
-        FlutterForegroundTask.sendDataToMain(<String, String>{
-          'action': 'start_from_notification',
-        });
+      case 'open_app':
+        FlutterForegroundTask.launchApp();
       case 'stop_stream':
         FlutterForegroundTask.sendDataToMain(<String, String>{
           'action': 'stop_from_notification',
