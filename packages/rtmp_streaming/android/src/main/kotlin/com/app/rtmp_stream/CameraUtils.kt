@@ -48,13 +48,76 @@ object CameraUtils {
         }
     }
 
+    /**
+     * Escolhe resolução cuja proporção (em retrato) é a mais próxima do ecrã do telemóvel,
+     * limitada ao preset, para reduzir esticamento no preview.
+     */
+    private fun selectClosestSizeForScreen(
+        activity: Activity?,
+        available: Array<Size>,
+        preset: ResolutionPreset,
+    ): Size {
+        if (available.isEmpty()) throw IllegalArgumentException("No available sizes")
+        val (maxW, maxH) = getTargetSizeForPreset(preset)
+        val metrics = activity?.resources?.displayMetrics
+        val screenAspect = if (metrics != null && metrics.heightPixels > 0) {
+            metrics.widthPixels.toFloat() / metrics.heightPixels.toFloat()
+        } else {
+            9f / 16f
+        }
+        val candidates = available.filter { s ->
+            s.width <= maxW && s.height <= maxH
+        }.ifEmpty { available.toList() }
+        return candidates.minByOrNull { s ->
+            val portraitAspect = if (s.width > s.height) {
+                s.height.toFloat() / s.width.toFloat()
+            } else {
+                s.width.toFloat() / s.height.toFloat()
+            }
+            val d = portraitAspect - screenAspect
+            d * d
+        } ?: selectClosestSize(available, preset)
+    }
+
+    private fun align16(value: Int): Int = (value + 15) / 16 * 16
+
+    /** Alinha dimensões a múltiplos de 16 (exigência comum em encoders Qualcomm/MediaCodec). */
+    fun alignSize16(size: Size): Size = Size(
+        align16(size.width),
+        align16(size.height),
+    )
+
+    /**
+     * Resolução para encode/stream: preset padrão (paisagem), sem usar tamanho do ecrã Flutter.
+     * Evita falhas do OMX quando o encoder recebe dimensões do widget (ex. 576x1248).
+     */
+    @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
+    fun computeEncoderSize(
+        activity: Activity?,
+        cameraName: String,
+        presetArg: ResolutionPreset,
+    ): Size {
+        val sizeList = getCameraResolutions(activity, cameraName)
+        val raw = if (sizeList.isNotEmpty()) {
+            selectClosestSize(sizeList, presetArg)
+        } else {
+            var preset = presetArg
+            if (preset.ordinal > ResolutionPreset.high.ordinal) {
+                preset = ResolutionPreset.high
+            }
+            val profile = getBestAvailableCamcorderProfileForResolutionPreset(cameraName, preset)
+            Size(profile.videoFrameWidth, profile.videoFrameHeight)
+        }
+        return alignSize16(raw)
+    }
+
     @RequiresApi(Build.VERSION_CODES.LOLLIPOP)
     fun computeBestPreviewSize(activity: Activity?,cameraName: String, presetArg: ResolutionPreset): Map<String,Any> {
         val sizeList = getCameraResolutions(activity, cameraName)
         val size: Size
         val bitrate: Int
         if (sizeList.isNotEmpty()) {
-            size = selectClosestSize(sizeList, presetArg)
+            size = selectClosestSizeForScreen(activity, sizeList, presetArg)
             bitrate = 1200 * 1000
         } else {
             var preset = presetArg

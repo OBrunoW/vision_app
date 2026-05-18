@@ -290,7 +290,9 @@ class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingOb
                               controller: vm.urlController,
                               style: const TextStyle(color: Colors.white, fontSize: 15),
                               decoration: _fieldDecoration('Endereço do servidor').copyWith(
-                                helperText: 'URL base sem o nome do fluxo no fim',
+                                helperText: proto == StreamProtocol.rtmp
+                                    ? 'Ex.: rtmp://IP:1935/live (sem o nome do fluxo no fim)'
+                                    : 'Ex.: rtsp://IP:8554/live (sem o nome do fluxo no fim)',
                                 helperStyle: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.45),
                                   fontSize: 11,
@@ -658,12 +660,11 @@ class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingOb
   }
 }
 
-/// Pré-visualização em ecrã inteiro sem distorcer.
+/// Pré-visualização em ecrã inteiro (cover) sem distorcer.
 ///
-/// Entregamos à OpenGlView (nativa) todo o espaço disponível e deixamos o
-/// AspectRatioMode.Fill do RootEncoder fazer o crop-to-fill correto.
-/// Qualquer cálculo de proporção em Flutter causava esticamento porque a
-/// resolução reportada pelo plugin (preset) difere da que Camera2ApiManager usa.
+/// O [AndroidView] estica se receber o ecrã completo com proporção diferente
+/// do vídeo. Calculamos o tamanho com base na proporção do preview e no ecrã
+/// (MediaQuery), e o nativo escolhe resolução próxima da proporção do telemóvel.
 class _CameraPreviewFill extends StatelessWidget {
   const _CameraPreviewFill({super.key, required this.controller});
 
@@ -677,11 +678,54 @@ class _CameraPreviewFill extends StatelessWidget {
         if (controller.value.isInitialized != true) {
           return const ColoredBox(color: Colors.black);
         }
-        return SizedBox.expand(
-          child: streaming.CameraPreview(
-            controller,
-            key: ValueKey('cam_${controller.hashCode}'),
-          ),
+
+        final preview = controller.value.previewSize;
+        if (preview == null || preview.width <= 0 || preview.height <= 0) {
+          return const ColoredBox(color: Colors.black);
+        }
+
+        final displayAspect = controller.value.displayAspectRatio;
+        if (displayAspect <= 0 || !displayAspect.isFinite) {
+          return const ColoredBox(color: Colors.black);
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final boxW = constraints.maxWidth;
+            final boxH = constraints.maxHeight;
+            if (!boxW.isFinite ||
+                !boxH.isFinite ||
+                boxW <= 0 ||
+                boxH <= 0) {
+              return const ColoredBox(color: Colors.black);
+            }
+
+            final boxAspect = boxW / boxH;
+
+            // Cover: preenche o ecrã mantendo proporção (sem esticar).
+            final double childW;
+            final double childH;
+            if (boxAspect > displayAspect) {
+              childW = boxW;
+              childH = boxW / displayAspect;
+            } else {
+              childH = boxH;
+              childW = boxH * displayAspect;
+            }
+
+            return ClipRect(
+              child: Center(
+                child: SizedBox(
+                  width: childW,
+                  height: childH,
+                  child: streaming.CameraPreview(
+                    controller,
+                    key: ValueKey('cam_${controller.hashCode}'),
+                  ),
+                ),
+              ),
+            );
+          },
         );
       },
     );

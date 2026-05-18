@@ -14,6 +14,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../core/app_branding.dart';
 import '../../services/rtmp_service.dart';
 import '../../services/stream_foreground_task.dart';
+import 'stream_config_store.dart';
 import 'stream_protocol.dart';
 import 'streaming_form_utils.dart';
 
@@ -30,11 +31,6 @@ class StreamingViewModel {
   void attachSnack(StreamSnack snack) => _onSnack = snack;
 
   void _snack(String message) => _onSnack?.call(message);
-
-  static const _keyName = 'last_camera_name';
-  static const _keyUrl = 'last_rtmp_url';
-  static const _keyStreamKey = 'last_stream_key_optional';
-  static const _keyProtocol = 'last_stream_protocol';
 
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController();
@@ -66,6 +62,22 @@ class StreamingViewModel {
 
   String get pathSegment =>
       pathSegmentForConnect(nameController.text, streamKeyController.text);
+
+  /// URL final usada na ligação (base + nome ou chave).
+  String get resolvedStreamUrl =>
+      buildStreamUrl(urlController.text, pathSegment);
+
+  StreamFormData get _formData => StreamFormData(
+        url: urlController.text,
+        name: nameController.text,
+        streamKey: streamKeyController.text,
+      );
+
+  void _applyFormData(StreamFormData data) {
+    urlController.text = data.url;
+    nameController.text = data.name;
+    streamKeyController.text = data.streamKey;
+  }
 
   streaming.StreamEncoder get _nativeEncoder =>
       protocol.peek() == StreamProtocol.rtsp
@@ -99,10 +111,9 @@ class StreamingViewModel {
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     if (_disposed) return;
-    nameController.text = prefs.getString(_keyName) ?? '';
-    urlController.text = prefs.getString(_keyUrl) ?? '';
-    streamKeyController.text = prefs.getString(_keyStreamKey) ?? '';
-    protocol.value = StreamProtocol.fromPrefs(prefs.getString(_keyProtocol));
+    protocol.value =
+        StreamProtocol.fromPrefs(prefs.getString(StreamConfigStore.lastProtocolKey));
+    _applyFormData(await StreamConfigStore.load(prefs, protocol.peek()));
   }
 
   void _onRtmpState() {
@@ -129,6 +140,12 @@ class StreamingViewModel {
       configOpen.value = false;
     } else if (_rtmp.state == RtmpSessionState.error) {
       configOpen.value = true;
+      final msg = _rtmp.errorMessage?.trim();
+      _snack(
+        msg != null && msg.isNotEmpty
+            ? '$msg\nDestino: $resolvedStreamUrl'
+            : 'Falha ao ligar.\nDestino: $resolvedStreamUrl',
+      );
     }
     unawaited(_syncBroadcastForeground());
   }
@@ -271,10 +288,7 @@ class StreamingViewModel {
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyName, nameController.text.trim());
-    await prefs.setString(_keyUrl, urlController.text.trim());
-    await prefs.setString(_keyStreamKey, streamKeyController.text.trim());
-    await prefs.setString(_keyProtocol, protocol.peek().name);
+    await StreamConfigStore.save(prefs, protocol.peek(), _formData);
     if (!_disposed) configOpen.value = false;
   }
 
@@ -284,9 +298,10 @@ class StreamingViewModel {
       _snack('Para a transmissão antes de mudar o protocolo.');
       return;
     }
-    protocol.value = next;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyProtocol, next.name);
+    await StreamConfigStore.save(prefs, protocol.peek(), _formData);
+    protocol.value = next;
+    _applyFormData(await StreamConfigStore.load(prefs, next));
     await _switchProtocolSmooth();
   }
 
@@ -454,20 +469,20 @@ class StreamingViewModel {
       _snack(err);
       return;
     }
-    final url = urlController.text.trim();
     final pathSeg = pathSegment;
     final ctrl = _controller;
     if (ctrl == null) return;
-    final name = nameController.text.trim();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyName, name);
-    await prefs.setString(_keyUrl, url);
-    await prefs.setString(_keyStreamKey, streamKeyController.text.trim());
-    await prefs.setString(_keyProtocol, protocol.peek().name);
+    await StreamConfigStore.save(prefs, protocol.peek(), _formData);
     if (_disposed) return;
     await _refreshPositionForStream();
     if (_disposed) return;
-    await _rtmp.start(ctrl, url, pathSeg);
+    final dest = resolvedStreamUrl;
+    await _rtmp.start(ctrl, urlController.text.trim(), pathSeg);
+    if (_disposed) return;
+    if (_rtmp.state == RtmpSessionState.connecting) {
+      _snack('A ligar a $dest…');
+    }
   }
 
   Future<void> stopBroadcast() async {

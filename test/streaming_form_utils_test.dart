@@ -100,6 +100,13 @@ void main() {
         'rtmp://host/live/key',
       );
     });
+
+    test('não duplica segmento se a URL base já o contém', () {
+      expect(
+        buildStreamUrl('rtmp://31.97.243.77:1935/live/camera1', 'camera1'),
+        'rtmp://31.97.243.77:1935/live/camera1',
+      );
+    });
   });
 
   group('formatStreamingElapsed', () {

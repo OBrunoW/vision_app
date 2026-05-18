@@ -12,10 +12,17 @@ enum RtmpSessionState {
 }
 
 String buildStreamUrl(String baseUrl, String streamName) {
+  final name = streamName.trim();
+  if (name.isEmpty) {
+    throw ArgumentError('streamName não pode ser vazio');
+  }
   final uri = Uri.parse(baseUrl.trim());
   final segments = List<String>.from(uri.pathSegments)
     ..removeWhere((e) => e.isEmpty);
-  segments.add(streamName.trim());
+  // Evita duplicar o segmento se a URL base já termina com o nome do fluxo.
+  if (segments.isEmpty || segments.last != name) {
+    segments.add(name);
+  }
   return uri.replace(pathSegments: segments).toString();
 }
 

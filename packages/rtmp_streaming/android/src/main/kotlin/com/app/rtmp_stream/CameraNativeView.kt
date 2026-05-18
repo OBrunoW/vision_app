@@ -111,7 +111,7 @@ class CameraNativeView(
     private var rtmpShouldSendPings: Boolean = false
     init {
 //        glView.isKeepAspectRatio = true
-        glView.setAspectRatioMode(AspectRatioMode.Adjust)
+        glView.setAspectRatioMode(AspectRatioMode.Fill)
         glView.holder.addCallback(this)
         streamCamera = createEncoder(isRtspEncoder)
         configureStreamEncoder()
@@ -263,23 +263,17 @@ class CameraNativeView(
         //判断如果不是视频流的话并且其用了音频
         try {
             if (!streamCamera.isStreaming) {
-                val streamingSize = CameraUtils.computeBestPreviewSize(activity, cameraName, preset)
-                val size = streamingSize["size"] as Size
-                val bitrateRes = streamingSize["bitrate"] as Int
-                val rotation = previewRotation()
-                streamCamera.forceBt709Color(forceBt709Color)
-                if ((enableAudio && streamCamera.prepareAudio()) && streamCamera.prepareVideo(
-                        size.width,
-                        size.height,
-                        bitrateRes,
-                        30,
-                        2,
-                        rotation,
+                val size = CameraUtils.computeEncoderSize(activity, cameraName, preset)
+                val bitrateRes = 1200 * 1000
+                if (!prepareEncoderForStream(size, bitrateRes)) {
+                    result.error(
+                        "videoRecordingFailed",
+                        "Encoder não suporta ${size.width}x${size.height}",
+                        null,
                     )
-                ) {
-                    streamCamera.startRecord(filePath)
+                    return
                 }
-
+                streamCamera.startRecord(filePath)
             } else {
                 streamCamera.startRecord(filePath)
             }
@@ -302,22 +296,11 @@ class CameraNativeView(
 
         try {
             if (!streamCamera.isStreaming) {
-                val streamingSize = CameraUtils.computeBestPreviewSize(activity, cameraName, preset)
-                val size = streamingSize["size"] as Size
-                val bitrateRes = streamingSize["bitrate"] as Int
-                val rotation = previewRotation()
+                val size = CameraUtils.computeEncoderSize(activity, cameraName, preset)
+                val bitrateRes = bitrate ?: (1200 * 1000)
                 streamCamera.forceBt709Color(forceBt709Color)
                 (streamCamera.streamClient as? RtmpStreamClient)?.shouldSendPings(rtmpShouldSendPings)
-                if (streamCamera.isRecording || streamCamera.prepareAudio() && streamCamera.prepareVideo(
-                        size.width,
-                        size.height,
-                        bitrate ?: bitrateRes,
-                        30,
-                        2,
-                        rotation,
-                    )
-                ) {
-                    // ready to start streaming
+                if (streamCamera.isRecording || prepareEncoderForStream(size, bitrateRes)) {
                     streamCamera.startStream(url)
                 } else {
                     result.error(
@@ -1006,6 +989,36 @@ class CameraNativeView(
     private fun previewRotation(): Int {
         val ctx = activity ?: viewContext
         return CameraHelper.getCameraOrientation(ctx)
+    }
+
+    /**
+     * Prepara encoder com resolução fixa da câmara (não do widget Flutter).
+     * Reinicia o preview para o GL ficar alinhado com o encoder.
+     */
+    private fun prepareEncoderForStream(size: Size, bitrate: Int): Boolean {
+        val rotation = previewRotation()
+        Log.d(
+            "CameraNativeView",
+            "prepareEncoderForStream: ${size.width}x${size.height} rot=$rotation bitrate=$bitrate",
+        )
+        val wasOnPreview = streamCamera.isOnPreview
+        if (wasOnPreview) {
+            streamCamera.stopPreview()
+        }
+        val audioOk = streamCamera.prepareAudio()
+        // Ordem RootEncoder: width, height, fps, bitrate, iFrameInterval, rotation
+        val videoOk = streamCamera.prepareVideo(
+            size.width,
+            size.height,
+            30,
+            bitrate,
+            2,
+            rotation,
+        )
+        if (videoOk && wasOnPreview && isSurfaceCreated) {
+            startPreview(cameraName)
+        }
+        return audioOk && videoOk
     }
 
     private fun isFrontFacing(cameraName: String): Boolean {

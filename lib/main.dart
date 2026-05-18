@@ -11,7 +11,7 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   if (kDebugMode) {
-    signalsDevToolsEnabled = false;
+    signalsDevToolsEnabled = false; 
   }
   configureDependencies();
   FlutterForegroundTask.initCommunicationPort();

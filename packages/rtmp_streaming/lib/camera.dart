@@ -289,10 +289,12 @@ class CameraValue {
   /// Raw event info
   final dynamic event;
 
-  /// Convenience getter for `previewSize.height / previewSize.width`.
-  ///
-  /// Can only be called when [initialize] is done.
+  /// Proporção do buffer da câmara (`altura / largura` em coords. do sensor).
   double get aspectRatio => previewSize!.height / previewSize!.width;
+
+  /// Proporção para layout em retrato (`largura / altura` visível no ecrã).
+  double get displayAspectRatio =>
+      previewSize!.width / previewSize!.height;
 
   CameraValue copyWith({
     bool? isInitialized,
