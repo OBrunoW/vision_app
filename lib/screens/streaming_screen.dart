@@ -502,7 +502,7 @@ class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingOb
         );
       }
 
-      if (_vm.initializing.value || _vm.cameraController == null) {
+      if ((_vm.initializing.value && !_vm.switching.value) || (_vm.cameraController == null && !_vm.switching.value)) {
         return Scaffold(
           backgroundColor: Colors.black,
           body: Stack(
@@ -557,6 +557,7 @@ class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingOb
       final ctrl = _vm.cameraController!;
       final live = _vm.sessionState.value == RtmpSessionState.live;
       final connecting = _vm.sessionState.value == RtmpSessionState.connecting;
+      final switching = _vm.switching.value;
 
       return WithForegroundTask(
         child: Scaffold(
@@ -570,6 +571,38 @@ class _StreamingScreenState extends State<StreamingScreen> with WidgetsBindingOb
                   controller: ctrl,
                 ),
               ),
+              if (switching)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: Colors.black87,
+                    child: Center(
+                      child: _glassPill(
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                color: Color(0xFF93C5FD),
+                                strokeWidth: 2.5,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'A alterar protocolo…',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 top: 0,
                 left: 0,
@@ -640,11 +673,17 @@ class _CameraPreviewFill extends StatelessWidget {
           return const ColoredBox(color: Colors.black);
         }
 
-        // Mesmo valor que o exemplo do rtmp_streaming: previewSize.height / width.
-        final aspect = controller.value.aspectRatio;
-        if (aspect <= 0 || !aspect.isFinite) {
+        // previewSize.height / previewSize.width (buffer da câmara, coords. paisagem).
+        // RootEncoder roda o feed nativamente; se o dispositivo estiver em retrato
+        // e o buffer for paisagem (rawAspect < 1) usamos 1/rawAspect para cover.
+        final rawAspect = controller.value.aspectRatio;
+        if (rawAspect <= 0 || !rawAspect.isFinite) {
           return const ColoredBox(color: Colors.black);
         }
+        final orientation = MediaQuery.of(context).orientation;
+        final aspect = (orientation == Orientation.portrait && rawAspect < 1.0)
+            ? 1.0 / rawAspect
+            : rawAspect;
 
         return LayoutBuilder(
           builder: (context, constraints) {

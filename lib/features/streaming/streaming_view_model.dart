@@ -52,6 +52,8 @@ class StreamingViewModel {
   final backgroundMode = signal<bool>(false);
   /// Incrementa para forçar reconstrução do [AndroidView] do preview.
   final previewGeneration = signal<int>(0);
+  /// Verdadeiro enquanto o protocolo está a ser trocado (sem mostrar ecrã de carga).
+  final switching = signal<bool>(false);
 
   streaming.CameraController? _controller;
   List<streaming.CameraDescription>? _cameras;
@@ -285,17 +287,48 @@ class StreamingViewModel {
     protocol.value = next;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyProtocol, next.name);
+    await _switchProtocolSmooth();
+  }
 
-    if (Platform.isAndroid) {
-      final ctrl = _controller;
-      if (ctrl != null && ctrl.value.isInitialized == true) {
+  /// Reinicializa o codificador em segundo plano sem piscar o ecrã.
+  Future<void> _switchProtocolSmooth() async {
+    if (_disposed) return;
+    final cameras = _cameras;
+    if (cameras == null || cameras.isEmpty) {
+      await _reinitCamera();
+      return;
+    }
+    switching.value = true;
+    streaming.CameraController? newCtrl;
+    try {
+      newCtrl = streaming.CameraController(
+        streaming.ResolutionPreset.high,
+        enableAudio: true,
+        androidUseOpenGL: false,
+        streamEncoder: _nativeEncoder,
+      );
+      await newCtrl.initialize(cameras[_cameraIndex]);
+      if (Platform.isIOS) {
         try {
-          await ctrl.switchStreamEncoder(_nativeEncoder);
-        } catch (_) {
-          await _reinitCamera();
-          return;
-        }
+          await newCtrl.setMultitaskingCameraAccessEnabled(true);
+        } catch (_) {}
       }
+      if (_disposed) {
+        await newCtrl.dispose();
+        return;
+      }
+      final oldCtrl = _controller;
+      _controller = newCtrl;
+      newCtrl = null;
+      previewGeneration.value = previewGeneration.peek() + 1;
+      // Aguarda o novo AndroidView estabilizar antes de remover o overlay.
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      unawaited(oldCtrl?.dispose());
+    } catch (_) {
+      await newCtrl?.dispose();
+      if (!_disposed) await _reinitCamera();
+    } finally {
+      if (!_disposed) switching.value = false;
     }
   }
 
@@ -503,6 +536,7 @@ class StreamingViewModel {
     lastKnownPosition.dispose();
     sessionState.dispose();
     protocol.dispose();
+    switching.dispose();
     backgroundMode.dispose();
     previewGeneration.dispose();
   }
